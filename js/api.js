@@ -36,6 +36,7 @@ async function apiSetRelay(relayId, state) {
     // Mutate mock so toggle feels real
     const r = MOCK_STATUS.relays.find(x => x.id === relayId);
     if (r) r.state = state;
+    saveMockState(); // persist across refresh
     return { ok: true };
   }
   return apiFetch(API.setRelay, {
@@ -54,6 +55,7 @@ async function apiSetLogic(payload) {
       r.activeLogic  = payload.logicType;
       r.logicDetail  = payload.detail || null;
     }
+    saveMockState(); // persist across refresh
     return { ok: true };
   }
   return apiFetch(API.setLogic, {

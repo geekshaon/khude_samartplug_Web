@@ -24,6 +24,7 @@ function hideLoader() {
   loader.classList.add('hidden');
   setTimeout(() => loader.remove(), 600);
   $('#app').hidden = false;
+  startClock(); // start ticking as soon as app is visible
 }
 
 // ── Connection indicator ──────────────────────────
@@ -40,6 +41,24 @@ function setTemperature(val) {
   if (val == null) { chip.hidden = true; return; }
   chip.hidden = false;
   $('#temp-value').textContent = parseFloat(val).toFixed(1);
+}
+
+// ── Live clock ────────────────────────────────────
+function startClock() {
+  const hhmmEl = document.getElementById('clock-hhmm');
+  const ssEl   = document.getElementById('clock-ss');
+  if (!hhmmEl) return;
+  function tick() {
+    const now = new Date();
+    const hh  = String(now.getHours()).padStart(2, '0');
+    const mm  = String(now.getMinutes()).padStart(2, '0');
+    const ss  = String(now.getSeconds()).padStart(2, '0');
+    hhmmEl.textContent = `${hh}:${mm}`;
+    if (ssEl) ssEl.textContent = `:${ss}`;
+  }
+  tick();
+  const delay = 1000 - (Date.now() % 1000);
+  setTimeout(() => { tick(); setInterval(tick, 1000); }, delay);
 }
 
 // ── Toast notifications ───────────────────────────
