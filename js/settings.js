@@ -86,12 +86,22 @@ function buildSettingsPage(root, config) {
     </div>
 
     <div class="sc-field">
-      <label class="sc-label" for="cfg-poweron">Power-On State</label>
+      <label class="sc-label">Power-On State</label>
       <p class="sc-field-desc">What happens to the relays when the ESP32 boots or resets.</p>
-      <select id="cfg-poweron" class="sc-select" onchange="updatePowerOnHint()">
-        <option value="0" ${config.powerOnState === 0 ? 'selected' : ''}>Always OFF on boot</option>
-        <option value="1" ${config.powerOnState === 1 ? 'selected' : ''}>Resume Last State</option>
-      </select>
+      <div class="sc-toggle-group" id="cfg-poweron">
+        <button type="button"
+          class="sc-toggle-btn ${config.powerOnState === 0 ? 'active' : ''}"
+          data-value="0" onclick="selectPowerOn(0)">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+          Always OFF on boot
+        </button>
+        <button type="button"
+          class="sc-toggle-btn ${config.powerOnState === 1 ? 'active' : ''}"
+          data-value="1" onclick="selectPowerOn(1)">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+          Resume Last State
+        </button>
+      </div>
       <p class="sc-hint" id="poweron-hint">${config.powerOnState === 1
         ? '🔄 Each relay will restore the state it had before the last power cycle.'
         : '⚡ All relays will be OFF every time the device powers on — safest default.'}</p>
@@ -182,12 +192,21 @@ function stepRelay(delta) {
   rebuildPinInputs(currentPins);
 }
 
+// ── Power-On toggle selector ──────────────────────
+function selectPowerOn(value) {
+  $$('#cfg-poweron .sc-toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.value, 10) === value);
+  });
+  updatePowerOnHint();
+}
+
 // ── Dynamic power-on hint ─────────────────────────
 function updatePowerOnHint() {
-  const el = $('#cfg-poweron');
+  const activeBtn = document.querySelector('#cfg-poweron .sc-toggle-btn.active');
+  const val = activeBtn ? parseInt(activeBtn.dataset.value, 10) : 0;
   const hint = $('#poweron-hint');
-  if (!el || !hint) return;
-  hint.textContent = el.value === '1'
+  if (!hint) return;
+  hint.textContent = val === 1
     ? '🔄 Each relay will restore the state it had before the last power cycle.'
     : '⚡ All relays will be OFF every time the device powers on — safest default.';
 }
@@ -238,7 +257,9 @@ async function handleSaveConfig() {
     pins.push(v);
   }
 
-  const powerOnState = parseInt($('#cfg-poweron').value, 10);
+  // Read power-on state from the custom toggle group
+  const activePoBtn = document.querySelector('#cfg-poweron .sc-toggle-btn.active');
+  const powerOnState = activePoBtn ? parseInt(activePoBtn.dataset.value, 10) : 0;
   const payload = { relayCount: count, pins, powerOnState };
 
   const btn = $('#save-cfg-btn');

@@ -1050,6 +1050,31 @@ img{max-width:100%}
 .sc-select:focus{border-color:rgba(124,58,237,.5);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
 .sc-select option{background:#111827;color:var(--text)}
 
+/* Power-On State segmented toggle */
+.sc-toggle-group{display:flex;gap:.5rem;flex-wrap:wrap}
+.sc-toggle-btn{
+  display:inline-flex;align-items:center;gap:.45rem;
+  font-size:.82rem;font-weight:600;
+  color:var(--muted2);
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:12px;padding:.65rem 1.1rem;
+  cursor:pointer;white-space:nowrap;
+  transition:background .2s, border-color .2s, color .2s, box-shadow .2s;
+}
+.sc-toggle-btn svg{width:15px;height:15px;flex-shrink:0}
+.sc-toggle-btn:hover{
+  color:var(--text);
+  background:rgba(255,255,255,.09);
+  border-color:rgba(255,255,255,.18);
+}
+.sc-toggle-btn.active{
+  color:var(--accent2);
+  background:rgba(124,58,237,.15);
+  border-color:rgba(124,58,237,.4);
+  box-shadow:0 0 16px rgba(124,58,237,.18);
+}
+
 /* ── GPIO Pin Grid ───────────────────────────────── */
 .pin-grid{
   display:grid;
