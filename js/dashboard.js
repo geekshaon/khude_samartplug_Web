@@ -20,6 +20,7 @@ async function refreshStatus() {
     setTemperature(State.status.temperature);
     setConnected(true);
     updateCardStates(State.status.relays);
+    updateHealthBar();
   } catch (_) {
     setConnected(false);
   }
@@ -93,27 +94,74 @@ function buildDashboard(root) {
 
   root.innerHTML = '';
 
-  // Header
+  // ── Dashboard Hero Header ──
   const header = document.createElement('div');
-  header.className = 'page-header';
+  header.className = 'dash-hero';
   header.innerHTML = `
-    <div>
-      <h1 class="page-title">Control Panel</h1>
-      <p class="page-subtitle">
-        ${State.config.relayCount} relays &nbsp;·&nbsp; GPIO: ${State.config.pins.join(', ')}
-      </p>
+    <div class="dash-hero-left">
+      <div class="dash-title-row">
+        <h1 class="page-title">Control Panel</h1>
+        <span class="dash-esp-tag">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 00-1 1v1H5a2 2 0 00-2 2v8a2 2 0 002 2h1v1a1 1 0 102 0v-1h4v1a1 1 0 102 0v-1h1a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 00-1-1H7zm-2 4h10v8H5V6z" clip-rule="evenodd"/></svg>
+          ESP32
+        </span>
+      </div>
+      <div class="dash-meta-row">
+        <div class="dash-relay-chip">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+          ${State.config.relayCount} Relays
+        </div>
+        <span class="dash-meta-dot"></span>
+        <div class="dash-gpio-group">
+          <span class="dash-gpio-label">GPIO</span>
+          ${State.config.pins.map(p => `<span class="dash-pin">${p}</span>`).join('')}
+        </div>
+      </div>
     </div>
-    <div class="active-count-badge">
-      <span class="count">${onCount}</span>
-      <span>active</span>
-    </div>`;
+
+    <div class="dash-hero-right">
+      <div class="dash-stat-card" id="dash-stat-card">
+        <div class="dash-stat-counter">
+          <span class="dash-stat-num" id="dash-active-num">${onCount}</span>
+          <span class="dash-stat-sep">/</span>
+          <span class="dash-stat-total">${State.config.relayCount}</span>
+        </div>
+        <div class="dash-stat-footer">
+          <span class="dash-active-dot ${onCount > 0 ? 'on' : ''}" id="dash-active-dot"></span>
+          <span class="dash-stat-label">Relays Active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-hero-line"></div>`;
   root.appendChild(header);
 
-  // Grid
+  // Relay Grid
   const grid = document.createElement('div');
   grid.className = 'relay-grid';
   relays.forEach(relay => grid.appendChild(buildRelayCard(relay)));
   root.appendChild(grid);
+
+  // ── Section divider before health bar ──
+  const divider = document.createElement('div');
+  divider.className = 'health-section-header';
+  divider.innerHTML = `
+    <div class="health-section-line"></div>
+    <span class="health-section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+      </svg>
+      System Health
+    </span>
+    <div class="health-section-line"></div>`;
+  root.appendChild(divider);
+
+  // System Health Bar
+  const healthBar = document.createElement('div');
+  healthBar.id = 'system-health-bar';
+  healthBar.className = 'health-bar';
+  healthBar.innerHTML = buildHealthBar(State.status);
+  root.appendChild(healthBar);
 }
 
 // ── Build a single relay card ─────────────────────
@@ -196,15 +244,158 @@ function logicChipInline(activeLogic, logicDetail) {
   return `<span class="rule-inline ${activeLogic === 1 ? 'manual' : 'active'}">${t.icon} ${t.label}${detail}</span>`;
 }
 
+// ── System Health Bar ─────────────────────────────
+// Computes display values from a status object
+function _parseHealth(status) {
+  const freeRamKB = status.free_ram  != null ? Math.round(status.free_ram / 1024) : null;
+  const rssi      = status.rssi      != null ? status.rssi      : null;
+  const uptimeSec = status.uptime    != null ? status.uptime    : null;
+  const cpuFreq   = status.cpu_freq  != null ? status.cpu_freq  : null;
+  const uptimeStr = uptimeSec != null
+    ? `${Math.floor(uptimeSec / 3600)}h ${Math.floor((uptimeSec % 3600) / 60)}m`
+    : '--';
+  // Signal colour
+  let sigClass = 'hc-sig-red';
+  if (rssi != null && rssi > -60)      sigClass = 'hc-sig-green';
+  else if (rssi != null && rssi > -80) sigClass = 'hc-sig-yellow';
+  // RAM colour (> 100 KB = ok, 50-100 = low, < 50 = critical)
+  let ramClass = '';
+  if (freeRamKB != null && freeRamKB <= 50)       ramClass = 'hc-ram-critical';
+  else if (freeRamKB != null && freeRamKB <= 100)  ramClass = 'hc-ram-low';
+  return { freeRamKB, rssi, uptimeStr, cpuFreq, sigClass, ramClass };
+}
+
+// Builds the full card HTML (called once on initial render)
+function buildHealthBar(status) {
+  const { freeRamKB, rssi, uptimeStr, cpuFreq, sigClass, ramClass } = _parseHealth(status);
+
+  return `
+    <div class="health-card ${ramClass}" id="hc-ram-card">
+      <div class="hc-top">
+        <div class="hc-bubble hc-bubble-purple">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a1 1 0 011-1h14a1 1 0 011 1v7a1 1 0 01-1 1H3a1 1 0 01-1-1V5zm3 8v2H4v1h12v-1h-1v-2H5zm1 0h8v2H6v-2z"/></svg>
+        </div>
+        <span class="hc-tag">RAM</span>
+      </div>
+      <p class="hc-main">
+        <span id="hc-ram-val">${freeRamKB != null ? freeRamKB : '--'}</span>
+        <span class="hc-unit" id="hc-ram-unit">${freeRamKB != null ? ' KB' : ''}</span>
+      </p>
+      <div class="hc-divider"></div>
+      <p class="hc-sub">Free Memory</p>
+      <div class="hc-foot hc-foot-purple"></div>
+    </div>
+
+    <div class="health-card ${sigClass}" id="hc-signal-card">
+      <div class="hc-top">
+        <div class="hc-bubble hc-bubble-signal">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 3.5A12.5 12.5 0 001.5 7.17l1.42 1.42A10.5 10.5 0 0110 5.5a10.5 10.5 0 017.08 3.09l1.42-1.42A12.5 12.5 0 0010 3.5z" opacity=".4"/>
+            <path d="M10 7.5A8.5 8.5 0 004.34 9.76l1.42 1.42A6.5 6.5 0 0110 9.5a6.5 6.5 0 014.24 1.68l1.42-1.42A8.5 8.5 0 0010 7.5z" opacity=".7"/>
+            <path d="M10 11.5a4.5 4.5 0 00-2.83 1l1.42 1.42a2.5 2.5 0 012.82 0l1.42-1.42A4.5 4.5 0 0010 11.5z"/>
+            <circle cx="10" cy="16" r="1.5"/>
+          </svg>
+        </div>
+        <span class="hc-tag">WiFi</span>
+      </div>
+      <p class="hc-main">
+        <span id="hc-rssi-val">${rssi != null ? rssi : '--'}</span>
+        <span class="hc-unit" id="hc-rssi-unit">${rssi != null ? ' dBm' : ''}</span>
+      </p>
+      <div class="hc-divider"></div>
+      <p class="hc-sub">Signal Strength</p>
+      <div class="hc-foot hc-foot-signal"></div>
+    </div>
+
+    <div class="health-card">
+      <div class="hc-top">
+        <div class="hc-bubble hc-bubble-blue">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+        </div>
+        <span class="hc-tag">TIME</span>
+      </div>
+      <p class="hc-main hc-main-md" id="hc-uptime-val">${uptimeStr}</p>
+      <div class="hc-divider"></div>
+      <p class="hc-sub">Device Uptime</p>
+      <div class="hc-foot hc-foot-blue"></div>
+    </div>
+
+    <div class="health-card">
+      <div class="hc-top">
+        <div class="hc-bubble hc-bubble-amber">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 00-1 1v1H5a2 2 0 00-2 2v8a2 2 0 002 2h1v1a1 1 0 102 0v-1h4v1a1 1 0 102 0v-1h1a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 00-1-1H7zm-2 4h10v8H5V6z" clip-rule="evenodd"/></svg>
+        </div>
+        <span class="hc-tag">CPU</span>
+      </div>
+      <p class="hc-main">
+        <span id="hc-cpu-val">${cpuFreq != null ? cpuFreq : '--'}</span>
+        <span class="hc-unit" id="hc-cpu-unit">${cpuFreq != null ? ' MHz' : ''}</span>
+      </p>
+      <div class="hc-divider"></div>
+      <p class="hc-sub">Clock Frequency</p>
+      <div class="hc-foot hc-foot-amber"></div>
+    </div>`;
+}
+
+// Patches only the changing values in-place (no DOM structure rebuild → no re-animation)
+function updateHealthBar() {
+  const bar = document.getElementById('system-health-bar');
+  if (!bar || !State.status) return;
+
+  // First render: build the full structure
+  if (!bar.firstElementChild) {
+    bar.innerHTML = buildHealthBar(State.status);
+    return;
+  }
+
+  // Subsequent polls: patch text only
+  const { freeRamKB, rssi, uptimeStr, cpuFreq, sigClass, ramClass } = _parseHealth(State.status);
+
+  const ramVal  = document.getElementById('hc-ram-val');
+  const ramUnit = document.getElementById('hc-ram-unit');
+  if (ramVal)  ramVal.textContent  = freeRamKB != null ? freeRamKB : '--';
+  if (ramUnit) ramUnit.textContent = freeRamKB != null ? ' KB' : '';
+  // Update RAM card colour class
+  const ramCard = document.getElementById('hc-ram-card');
+  if (ramCard) {
+    ramCard.classList.remove('hc-ram-low', 'hc-ram-critical');
+    if (ramClass) ramCard.classList.add(ramClass);
+  }
+
+  const rssiVal  = document.getElementById('hc-rssi-val');
+  const rssiUnit = document.getElementById('hc-rssi-unit');
+  if (rssiVal)  rssiVal.textContent  = rssi != null ? rssi : '--';
+  if (rssiUnit) rssiUnit.textContent = rssi != null ? ' dBm' : '';
+  // Update signal card colour class
+  const sigCard = document.getElementById('hc-signal-card');
+  if (sigCard) {
+    sigCard.classList.remove('hc-sig-green', 'hc-sig-yellow', 'hc-sig-red');
+    sigCard.classList.add(sigClass);
+  }
+
+  const uptimeEl = document.getElementById('hc-uptime-val');
+  if (uptimeEl) uptimeEl.textContent = uptimeStr;
+
+  const cpuVal  = document.getElementById('hc-cpu-val');
+  const cpuUnit = document.getElementById('hc-cpu-unit');
+  if (cpuVal)  cpuVal.textContent  = cpuFreq != null ? cpuFreq : '--';
+  if (cpuUnit) cpuUnit.textContent = cpuFreq != null ? ' MHz' : '';
+}
+
 // ── Handle toggle click ───────────────────────────
 async function handleToggle(relayId, newState) {
   // 1. Update UI instantly (optimistic) — no waiting for API
   applyCardState(relayId, newState);
 
-  // 2. Update active-count badge immediately
+  // 2. Update active-count hero immediately
   const onCount = (State.status ? State.status.relays.filter(r => r.state).length : 0);
-  const countBadge = document.querySelector('.active-count-badge .count');
-  if (countBadge) countBadge.textContent = onCount;
+  const numEl = document.getElementById('dash-active-num');
+  if (numEl) numEl.textContent = onCount;
+  const dotEl = document.getElementById('dash-active-dot');
+  if (dotEl) dotEl.className = `dash-active-dot ${onCount > 0 ? 'on' : ''}`;
+  // Update stat card glow
+  const statCard = document.getElementById('dash-stat-card');
+  if (statCard) statCard.className = `dash-stat-card ${onCount > 0 ? 'has-active' : ''}`;
 
   // 3. Fire API in background
   try {

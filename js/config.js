@@ -21,6 +21,10 @@ const MOCK_CONFIG = {
 
 const MOCK_STATUS = {
   temperature: 31.5,
+  free_ram:    184320,   // bytes — displayed as KB
+  rssi:        -55,      // dBm  — green > -60, yellow -60..-80, red < -80
+  uptime:      3660,     // seconds — displayed as H:M
+  cpu_freq:    240,      // MHz
   relays: [
     { id: 1, name: 'Lab Heater',     state: true,  activeLogic: 2, logicDetail: '28 min left' },
     { id: 2, name: 'Soldering Iron', state: false, activeLogic: 1, logicDetail: null },
