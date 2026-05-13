@@ -30,7 +30,7 @@ function getRuleFormHTML(logicType, currentTemp) {
         </div>
         <div class="form-group">
           <label class="form-label">Turn OFF after (minutes)</label>
-          <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 30" class="${inputClass}" />
+          <input id="f-timer-mins" type="number" min="1" max="1440" placeholder="e.g. 30" class="${inputClass}" />
           <span class="form-hint">Range: 1 – 1440 minutes (24 hrs)</span>
         </div>
       </div>`;
@@ -43,7 +43,7 @@ function getRuleFormHTML(logicType, currentTemp) {
         </div>
         <div class="form-group">
           <label class="form-label">Turn ON after (minutes)</label>
-          <input id="f-minutes" type="number" min="1" max="1440" placeholder="e.g. 120" class="${inputClass}" />
+          <input id="f-timer-mins" type="number" min="1" max="1440" placeholder="e.g. 120" class="${inputClass}" />
           <span class="form-hint">Range: 1 – 1440 minutes (24 hrs)</span>
         </div>
       </div>`;
@@ -84,7 +84,7 @@ function getRuleFormHTML(logicType, currentTemp) {
         </div>
       </div>`;
 
-    case 6: // Temperature Condition
+    case 6: { // Temperature Condition — block required to scope const in switch
       const tempDisplay = currentTemp != null ? ` (now: ${parseFloat(currentTemp).toFixed(1)}°C)` : '';
       return `<div class="rule-form">
         <div class="rule-info">
@@ -105,6 +105,7 @@ function getRuleFormHTML(logicType, currentTemp) {
           </div>
         </div>
       </div>`;
+    }
 
     default:
       return '<p style="color:var(--muted)">Unknown rule type.</p>';
@@ -194,7 +195,7 @@ async function saveRule() {
         break;
       case 2:
       case 3: {
-        const mins = parseInt($('#f-minutes').value, 10);
+        const mins = parseInt($('#f-timer-mins').value, 10);
         if (!mins || mins < 1) { toast('Enter a valid number of minutes.', 'error'); return; }
         payload.minutes = mins;
         detailLabel = logicType === 2 ? `${mins} min left` : `${mins} min delay`;
@@ -243,7 +244,8 @@ async function saveRule() {
 
     toast('Rule saved successfully!', 'success');
     closeModal();
-    await refreshStatus(); // update cards
+    // Only refresh if still on dashboard — avoids updating stale/missing DOM
+    if (State.currentView === 'dashboard') await refreshStatus();
 
   } catch (e) {
     toast('Failed to save rule.', 'error');

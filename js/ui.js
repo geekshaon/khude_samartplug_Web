@@ -99,16 +99,4 @@ function renderError(root, msg, onRetry) {
   ));
 }
 
-// ── Logic detail label ────────────────────────────
-function logicChipHTML(activeLogic, logicDetail) {
-  const t = LOGIC_TYPES.find(x => x.id === activeLogic);
-  if (!t) return '';
-  const detail = logicDetail ? ` · ${logicDetail}` : '';
-  const isManual = activeLogic === 1;
-  return `<div class="active-rule">
-    <span class="rule-chip ${isManual ? 'manual' : ''}">
-      <span>${t.icon}</span>
-      <span>${t.label}${detail}</span>
-    </span>
-  </div>`;
-}
+

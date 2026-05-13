@@ -387,8 +387,10 @@ async function handleToggle(relayId, newState) {
   // 1. Update UI instantly (optimistic) — no waiting for API
   applyCardState(relayId, newState);
 
-  // 2. Update active-count hero immediately
-  const onCount = (State.status ? State.status.relays.filter(r => r.state).length : 0);
+  // 2. Compute active count using the known newState — avoids relying on
+  //    applyCardState() mutation order (safer if relay not in State.status)
+  const allRelays = State.status ? State.status.relays : [];
+  const onCount = allRelays.filter(r => r.id === relayId ? newState : r.state).length;
   const numEl = document.getElementById('dash-active-num');
   if (numEl) numEl.textContent = onCount;
   const dotEl = document.getElementById('dash-active-dot');

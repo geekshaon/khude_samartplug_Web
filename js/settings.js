@@ -36,7 +36,7 @@ function buildSettingsPage(root, config) {
     </div>
     <div class="settings-hero-right">
       <div class="settings-hero-stat">
-        <span class="settings-hero-stat-num">${config.relayCount}</span>
+        <span class="settings-hero-stat-num" id="sh-relay-count">${config.relayCount}</span>
         <span class="settings-hero-stat-label">Relays</span>
       </div>
       <div class="settings-hero-stat">
@@ -161,9 +161,25 @@ function buildSettingsPage(root, config) {
 function stepRelay(delta) {
   const el = $('#cfg-count');
   if (!el) return;
-  const next = Math.min(8, Math.max(1, (parseInt(el.value, 10) || 1) + delta));
-  el.value = next;
-  rebuildPinInputs();
+  const oldCount = parseInt(el.value, 10) || 1;
+
+  // Capture whatever the user has already typed in the pin inputs
+  // (undefined = empty/not-yet-rendered slot, NaN = invalid input kept as-is)
+  const currentPins = Array.from({ length: oldCount }, (_, i) => {
+    const inp = $(`#pin-${i}`);
+    if (!inp) return undefined;
+    const v = parseInt(inp.value, 10);
+    return isNaN(v) ? undefined : v;
+  });
+
+  const newCount = Math.min(8, Math.max(1, oldCount + delta));
+  el.value = newCount;
+
+  // Keep hero stat in sync
+  const heroCount = document.getElementById('sh-relay-count');
+  if (heroCount) heroCount.textContent = newCount;
+
+  rebuildPinInputs(currentPins);
 }
 
 // ── Dynamic power-on hint ─────────────────────────
